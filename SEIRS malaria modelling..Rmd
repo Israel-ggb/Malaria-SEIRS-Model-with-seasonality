@@ -1,0 +1,78 @@
+---
+title: "SEIRS Malaria Model with Seasonal Variations"
+author: "ALOKEME Israël"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+## 📘 Introduction
+
+This simulation models the spread of malaria using a SEIRS model that includes **seasonal variation** in transmission. Parameters are based on estimated data and some literature from **Benin and West Africa**.
+
+---
+
+## 💻 Full R Code
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Load necessary packages
+library(deSolve)
+library(tidyverse)
+library(reshape2)
+
+# Define the SEIRS model with seasonality
+SEIRS_model <- function(t, state, parameters) {
+  with(as.list(c(state, parameters)), {
+    
+    P <- S + E + I + R
+    beta_t <- beta * (1 + A * sin(2 * pi * t / T))
+    lam <- beta_t * E / P
+    
+    dS <- -lam * S + mu * R                          
+    dE <- lam * S - alpha * E
+    dI <- alpha * E - epsilon * I
+    dR <- epsilon * I - mu * R
+    
+    list(c(dS, dE, dI, dR))
+  })
+}
+
+# Initial population and states
+initP <- 1000000 
+initE <- 1 
+initI <- 0 
+initR <- 0 
+initS <- initP - initE - initI - initR
+istate <- c(S = initS, E = initE, I = initI, R = initR)
+
+# Parameters based on Benin context
+parameters <- c(
+  mu = 1/365,           # loss of immunity ~ 1 year
+  beta = 0.16,          # transmission coefficient for R0 ~ 5
+  A = 0.7,              # seasonal amplitude
+  alpha = 1/12,         # incubation ~12 days
+  T = 365,              # seasonal cycle (1 year)
+  epsilon = 1/30        # infectious period ~30 days
+)
+
+# Time vector
+t <- seq(0, 365, by = 1)
+
+# Solve the ODEs
+out <- ode(y = istate, times = t, func = SEIRS_model, parms = parameters)
+out_df <- as.data.frame(out)
+
+# Melt the dataframe and plot
+out_long <- melt(out_df, id.vars = "time")
+
+ggplot(out_long, aes(x = time, y = value, color = variable)) +
+  geom_line(size = 1) +
+  labs(title = "SEIRS Malaria Model with Seasonality (Benin context)",
+       y = "Population count",
+       x = "Time (days)") +
+  theme_minimal()
+
+
